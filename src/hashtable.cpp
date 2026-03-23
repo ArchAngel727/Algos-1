@@ -17,7 +17,8 @@ Hashtable::Hashtable() {
 Hashtable::~Hashtable() {}
 
 // djb2 Hashing Algorithm
-const size_t Hashtable::hash(const std::string &str) const {
+const size_t Hashtable::hash(const std::string &str,
+                             const size_t &vec_size) const {
   // magic prime number
   size_t hash = 5381;
 
@@ -27,7 +28,7 @@ const size_t Hashtable::hash(const std::string &str) const {
         static_cast<unsigned char>(chr); // hash * 33 + chr / bitshift so fast
   }
 
-  hash = hash % this->vec.size();
+  hash = hash % vec_size;
 
   return hash;
 }
@@ -45,30 +46,49 @@ size_t Hashtable::calculateFillRate() {
 }
 
 bool Hashtable::exists(size_t hash) {
-  return (this->vec.size() >= hash && this->vec[hash].has_value());
+  return (hash < this->vec.size() && this->vec[hash].has_value());
 }
 
-void Hashtable::remove(std::string &key) {
-  const size_t hash = this->hash(key);
-
-  auto it = this->vec.begin() + hash;
-
-  while (it != this->vec.end() && it->value().get_kuerzel() != key) {
-    ++it;
+std::optional<size_t> Hashtable::find_index(const std::string &str) const {
+  if (vec.empty()) {
+    return std::nullopt;
   }
 
-  if (it == this->vec.end()) {
-    return;
+  const size_t hash = this->hash(str, this->vec.size());
+
+  for (size_t i = 0; i < this->vec.size(); ++i) {
+    size_t index = (hash + i * i) % this->vec.size();
+    const auto &opt = this->vec.at(index);
+
+    if (!opt.has_value()) {
+      return std::nullopt;
+    }
+
+    if (opt->get_kuerzel() == str) {
+      return index;
+    }
   }
 
-  this->vec.erase(std::next(this->vec.begin(), hash));
+  return std::nullopt;
 }
 
-const bool Hashtable::insert(const std::string &key, Aktie val) {
-  size_t hash = this->hash(key);
+void Hashtable::remove(std::string &str) {
+  const size_t hash = this->hash(str, this->vec.size());
+  size_t i = 0;
+  size_t slot = 0;
 
-  for (int i = 0; this->exists(hash); i++) {
-    hash = static_cast<size_t>(hash + std::pow(i, 2)) % this->vec.size();
+  auto index = this->find_index(str);
+
+  if (index.has_value()) {
+    this->vec.at(*index) = std::nullopt;
+  }
+}
+
+const bool Hashtable::insert(const std::string &str, Aktie val) {
+  size_t hash = this->hash(str, this->vec.size());
+
+  for (size_t i = 0; this->exists(hash); ++i) {
+    hash = (hash + i * i) % this->vec.size();
   }
 
   this->vec[hash] = std::optional<Aktie>(val);
@@ -86,11 +106,12 @@ void Hashtable::rehash() {
 
   for (auto &item : this->vec) {
     if (item.has_value()) {
-      Aktie tmp = item.value();
-      auto it = std::find(this->vec.begin(), this->vec.end(), tmp);
-      if (it != this->vec.end()) {
-        this->vec.erase(it);
-        new_vec[this->hash(tmp.get_kuerzel())] = item;
+      Aktie &tmp = item.value();
+
+      auto index = this->find_index(tmp.get_kuerzel());
+
+      if (index.has_value()) {
+        new_vec.at(this->hash(tmp.get_kuerzel(), new_vec.size())) = item;
       }
     }
   }
@@ -98,10 +119,10 @@ void Hashtable::rehash() {
   this->vec = std::move(new_vec);
 }
 
-const std::optional<Aktie> Hashtable::get(std::string &key) const {
-  size_t hash = this->hash(key);
+std::optional<Aktie> &Hashtable::get(std::string &str) {
+  auto index = this->find_index(str);
 
-  return this->vec.at(hash);
+  return this->vec.at(*index);
 }
 
 void Hashtable::debug_print() {
@@ -110,7 +131,8 @@ void Hashtable::debug_print() {
   for (auto item : this->vec) {
     if (item.has_value()) {
       std::cout << item.value().get_kuerzel() << " | "
-                << this->hash(item.value().get_kuerzel()) << "\n";
+                << this->hash(item.value().get_kuerzel(), this->vec.size())
+                << "\n";
     } else {
       empty += 1;
     }

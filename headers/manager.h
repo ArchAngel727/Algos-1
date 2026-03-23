@@ -5,13 +5,11 @@
 #include <vector>
 class Serializer {};
 
-enum Command { ADD, DEL, IMPORT, SEARCH, PLOT, SAVE, LOAD, QUIT };
-
 class Manager {
 private:
   bool running;
-  Hashtable Hashtable;
-  Serializer *serializer;
+  Hashtable hashtable;
+  // Serializer *serializer;
 
 public:
   Manager();
